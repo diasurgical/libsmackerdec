@@ -46,17 +46,18 @@
 #include "HuffmanVLC.h"
 #include "LogError.h"
 #include <assert.h>
+#include <climits>
 
 std::vector<class SmackerDecoder*> classInstances;
 
-SmackerHandle Smacker_Open(const char* fileName)
+SmackerHandle Smacker_Open(SDL_RWops *rwops)
 {
 	SmackerHandle newHandle;
 	newHandle.isValid = false;
 	newHandle.instanceIndex = -1;
 
 	SmackerDecoder *newDecoder = new SmackerDecoder();
-	if (!newDecoder->Open(fileName))
+	if (!newDecoder->Open(rwops))
 	{
 		delete newDecoder;
 		return newHandle;
@@ -152,6 +153,11 @@ void Smacker_GetPalette(SmackerHandle &handle, uint8_t *palette)
 void Smacker_GetFrame(SmackerHandle &handle, uint8_t *frame)
 {
 	classInstances[handle.instanceIndex]->GetFrame(frame);
+}
+
+void Smacker_Rewind(SmackerHandle &handle)
+{
+	classInstances[handle.instanceIndex]->Rewind();
 }
 
 SmackerDecoder::SmackerDecoder()
@@ -286,13 +292,13 @@ int SmackerDecoder::GetCode(SmackerCommon::BitReader &bits, std::vector<int> &re
     return v;
 }
 
-bool SmackerDecoder::Open(const std::string &fileName)
+bool SmackerDecoder::Open(SDL_RWops *rwops)
 {
 	// open the file (read only)
-	file.Open(fileName);
+	file.Open(rwops);
 	if (!file.Is_Open())
 	{
-		SmackerCommon::LogError("Can't open file " + fileName);
+		SmackerCommon::LogError("Can't open Smacker video");
 		return false;
 	}
 
@@ -399,6 +405,7 @@ bool SmackerDecoder::Open(const std::string &fileName)
 
 	// set nextPos to where we are now, as next data is frame 1
 	nextPos = file.GetPosition();
+	firstPos = nextPos;
 
 	// determine max buffer sizes for audio tracks
 	file.Seek(nextPos, SmackerCommon::FileStream::kSeekStart);
@@ -1068,6 +1075,12 @@ int SmackerDecoder::DecodeAudio(uint32_t size, SmackerAudioTrack &track)
 	bits.SkipBits(left);
 
 	return 0;
+}
+
+void SmackerDecoder::Rewind()
+{
+	currentFrame = 0;
+	nextPos = firstPos;
 }
 
 void SmackerDecoder::GetPalette(uint8_t *palette)

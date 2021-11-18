@@ -21,8 +21,7 @@
 #define _SmackerFileStream_h_
 
 #include <string>
-#include <iostream>
-#include <fstream>
+#include <SDL.h>
 #include <stdint.h>
 
 namespace SmackerCommon {
@@ -30,8 +29,17 @@ namespace SmackerCommon {
 class FileStream
 {
 	public:
+		FileStream()
+		    : rwops(nullptr)
+		{
+		}
 
-		bool Open(const std::string &fileName);
+		~FileStream()
+		{
+			Close();
+		}
+
+		bool Open(SDL_RWops *rwops);
 		bool Is_Open();
 		void Close();
 
@@ -58,7 +66,8 @@ class FileStream
 		bool Is_Eos();
 
 	private:
-		std::ifstream file;
+		SDL_RWops *rwops;
+		bool is_eos;
 };
 
 } // close namespace SmackerCommon

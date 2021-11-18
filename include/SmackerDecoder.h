@@ -66,7 +66,7 @@ struct SmackerAudioInfo
 	uint32_t idealBufferSize;
 };
 
-SmackerHandle     Smacker_Open                 (const char* fileName);
+SmackerHandle     Smacker_Open                 (SDL_RWops *rwops);
 void              Smacker_Close                (SmackerHandle &handle);
 uint32_t          Smacker_GetNumAudioTracks    (SmackerHandle &handle);
 SmackerAudioInfo  Smacker_GetAudioTrackDetails (SmackerHandle &handle, uint32_t trackIndex);
@@ -78,6 +78,7 @@ uint32_t          Smacker_GetNextFrame         (SmackerHandle &handle);
 float             Smacker_GetFrameRate         (SmackerHandle &handle);
 void              Smacker_GetPalette           (SmackerHandle &handle, uint8_t *palette);
 void              Smacker_GetFrame             (SmackerHandle &handle, uint8_t *frame);
+void              Smacker_Rewind               (SmackerHandle &handle);
 
 const int kMaxAudioTracks = 7;
 
@@ -110,7 +111,7 @@ class SmackerDecoder
 		SmackerDecoder();
 		~SmackerDecoder();
 
-		bool Open(const std::string &fileName);
+		bool Open(SDL_RWops *rwops);
 		void GetPalette(uint8_t *palette);
 		void GetFrame(uint8_t *frame);
 
@@ -120,6 +121,7 @@ class SmackerDecoder
 		uint32_t GetCurrentFrameNum();
 		float GetFrameRate();
 		void GetNextFrame();
+		void Rewind();
 
 	private:
 
@@ -152,6 +154,7 @@ class SmackerDecoder
 
 		uint32_t currentFrame;
 
+		int32_t firstPos;
 		int32_t nextPos;
 
 		bool DecodeHeaderTrees();

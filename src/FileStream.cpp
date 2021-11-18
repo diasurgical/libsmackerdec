@@ -22,103 +22,87 @@
 
 namespace SmackerCommon {
 
-bool FileStream::Open(const std::string &fileName)
+bool FileStream::Open(SDL_RWops *rwops)
 {
-	file.open(fileName.c_str(), std::ifstream::in | std::ifstream::binary);
-	if (!file.is_open())
-	{
-		// log error
-		return false;
-	}
-
-	return true;
+	this->rwops = rwops;
+	is_eos = false;
+	return rwops != nullptr;
 }
 
 bool FileStream::Is_Open()
 {
-	return file.is_open();
+	return rwops != nullptr;
 }
 
 void FileStream::Close()
 {
-	file.close();
+	if (Is_Open())
+		SDL_RWclose(rwops);
+	rwops = nullptr;
 }
 
 int32_t FileStream::ReadBytes(uint8_t *data, uint32_t nBytes)
 {
-	file.read(reinterpret_cast<char*>(data), nBytes);
-
-	if (file.eof()) {
-		return 0;
-	}
-	else if (file.fail()) {
-		return 0;
-	}
-	else if (file.bad()) {
-		return 0;
-	}
-
-	return static_cast<int32_t>(file.gcount());
+	size_t bytesRead = SDL_RWread(rwops, reinterpret_cast<void *>(data), 1, nBytes);
+	is_eos = bytesRead == 0;
+	return static_cast<int32_t>(bytesRead);
 }
 
 uint32_t FileStream::ReadUint32LE()
 {
-	uint32_t value;
-	file.read(reinterpret_cast<char*>(&value), 4);
-	return value;
+	Uint32 value;
+	int32_t bytesRead = ReadBytes(reinterpret_cast<uint8_t *>(&value), 4);
+	if (bytesRead < 4)
+		return 0;
+	return static_cast<uint32_t>(SDL_SwapLE32(value));
 }
 
 uint32_t FileStream::ReadUint32BE()
 {
-	uint32_t value;
-	file.read(reinterpret_cast<char*>(&value), 4);
-	return _byteswap_ulong(value);
+	Uint32 value;
+	int32_t bytesRead = ReadBytes(reinterpret_cast<uint8_t *>(&value), 4);
+	if (bytesRead < 4)
+		return 0;
+	return static_cast<uint32_t>(SDL_SwapBE32(value));
 }
 
 uint16_t FileStream::ReadUint16LE()
 {
-	uint16_t value;
-	file.read(reinterpret_cast<char*>(&value), 2);
-	return value;
+	Uint16 value;
+	int32_t bytesRead = ReadBytes(reinterpret_cast<uint8_t *>(&value), 2);
+	if (bytesRead < 2)
+		return 0;
+	return static_cast<uint16_t>(SDL_SwapLE16(value));
 }
 
 uint16_t FileStream::ReadUint16BE()
 {
-	uint16_t value;
-	file.read(reinterpret_cast<char*>(&value), 2);
-	return _byteswap_ushort(value);
+	Uint16 value;
+	int32_t bytesRead = ReadBytes(reinterpret_cast<uint8_t *>(&value), 2);
+	if (bytesRead < 2)
+		return 0;
+	return static_cast<uint16_t>(SDL_SwapBE16(value));
 }
 
 uint8_t FileStream::ReadByte()
 {
 	uint8_t value;
-	file.read(reinterpret_cast<char*>(&value), 1);
+	int32_t bytesRead = ReadBytes(reinterpret_cast<uint8_t *>(&value), 1);
+	if (bytesRead < 1)
+		return 0;
 	return value;
 }
 
 bool FileStream::Seek(int32_t offset, SeekDirection direction)
 {
-	if (kSeekStart == direction) {
-		file.seekg(offset, std::ios::beg);
-	}
-	else if (kSeekCurrent == direction) {
-		file.seekg(offset, std::ios::cur);
-	}
-
-	// TODO - end seek
-
-	if (file.bad())
-	{
-		// todo
-		return false;
-	}
-	if (file.fail())
-	{
-		// todo
-		return false;
-	}
-
-	return true;
+	Sint64 result = -1;
+	if (kSeekStart == direction)
+		result = SDL_RWseek(rwops, static_cast<Sint64>(offset), RW_SEEK_SET);
+	else if (kSeekCurrent == direction)
+		result = SDL_RWseek(rwops, static_cast<Sint64>(offset), RW_SEEK_CUR);
+	else if (kSeekEnd == direction)
+		result = SDL_RWseek(rwops, static_cast<Sint64>(offset), RW_SEEK_END);
+	return result >= 0;
 }
 
 bool FileStream::Skip(int32_t offset)
@@ -128,12 +112,12 @@ bool FileStream::Skip(int32_t offset)
 
 bool FileStream::Is_Eos()
 {
-	return file.eof();
+	return is_eos;
 }
 
 int32_t FileStream::GetPosition()
 {
-	return static_cast<int32_t>(file.tellg());
+	return static_cast<int32_t>(SDL_RWtell(rwops));
 }
 
 } // close namespace SmackerCommon
