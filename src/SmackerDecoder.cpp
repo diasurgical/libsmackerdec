@@ -188,11 +188,11 @@ SmackerDecoder::~SmackerDecoder()
 	delete[] picture;
 }
 
-static int EncodeSignature(const char *signature)
+template <typename T>
+constexpr uint32_t LoadBE32(const T *b)
 {
-	const Uint32 *bigEndian = reinterpret_cast<const Uint32 *>(signature);
-	Uint32 nativeEndian = SDL_SwapBE32(*bigEndian);
-	return static_cast<int>(nativeEndian);
+	static_assert(sizeof(T) == 1, "invalid argument");
+	return (static_cast<uint32_t>(b[0]) << 24) | (static_cast<uint32_t>(b[1]) << 16) | (static_cast<uint32_t>(b[2]) << 8) | static_cast<uint32_t>(b[3]);
 }
 
 // from bswap.h
@@ -245,8 +245,8 @@ const int kFlagRingFrame = 0x01;
 const int kTreeBits = 9;
 const int kSMKnode = 0x80000000;
 
-const int kSMK2iD = EncodeSignature("SMK2");
-const int kSMK4iD = EncodeSignature("SMK4");
+const uint32_t kSMK2iD = LoadBE32("SMK2");
+const uint32_t kSMK4iD = LoadBE32("SMK4");
 
 
 /**
