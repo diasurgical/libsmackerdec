@@ -76,6 +76,7 @@ void              Smacker_GetFrameSize         (SmackerHandle &handle, uint32_t 
 uint32_t          Smacker_GetCurrentFrameNum   (SmackerHandle &handle);
 uint32_t          Smacker_GetNextFrame         (SmackerHandle &handle);
 float             Smacker_GetFrameRate         (SmackerHandle &handle);
+bool              Smacker_DidPaletteChange     (SmackerHandle &handle);
 void              Smacker_GetPalette           (SmackerHandle &handle, uint8_t *palette);
 void              Smacker_GetFrame             (SmackerHandle &handle, uint8_t *frame);
 void              Smacker_Rewind               (SmackerHandle &handle);
@@ -114,6 +115,7 @@ class SmackerDecoder
 		bool Open(SDL_RWops *rwops);
 		void GetPalette(uint8_t *palette);
 		void GetFrame(uint8_t *frame);
+		bool DidPaletteChange();
 
 		SmackerAudioInfo GetAudioTrackDetails(uint32_t trackIndex);
 		uint32_t GetAudioData(uint32_t trackIndex, int16_t *audioBuffer);
@@ -133,6 +135,7 @@ class SmackerDecoder
 		uint32_t fps; // frames per second
 
 		uint8_t palette[768];
+		bool paletteChanged;
 		uint8_t *picture;
 
 		bool isVer4;

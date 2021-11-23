@@ -145,6 +145,11 @@ float Smacker_GetFrameRate(SmackerHandle &handle)
 	return classInstances[handle.instanceIndex]->GetFrameRate();
 }
 
+bool Smacker_DidPaletteChange(SmackerHandle &handle)
+{
+	return classInstances[handle.instanceIndex]->DidPaletteChange();
+}
+
 void Smacker_GetPalette(SmackerHandle &handle, uint8_t *palette)
 {
 	classInstances[handle.instanceIndex]->GetPalette(palette);
@@ -754,6 +759,7 @@ int SmackerDecoder::ReadPacket()
             }
         }
         
+		paletteChanged = true;
 		file.Seek(pos, SmackerCommon::FileStream::kSeekStart);
 	}
 
@@ -1086,6 +1092,13 @@ void SmackerDecoder::Rewind()
 void SmackerDecoder::GetPalette(uint8_t *palette)
 {
 	memcpy(palette, this->palette, 768);
+}
+
+bool SmackerDecoder::DidPaletteChange()
+{
+	bool didPaletteChange = paletteChanged;
+	paletteChanged = false;
+	return didPaletteChange;
 }
 
 void SmackerDecoder::GetFrame(uint8_t *frame)
