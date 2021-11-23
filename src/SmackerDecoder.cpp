@@ -245,8 +245,8 @@ const int kFlagRingFrame = 0x01;
 const int kTreeBits = 9;
 const int kSMKnode = 0x80000000;
 
-const uint32_t kSMK2iD = LoadBE32("SMK2");
-const uint32_t kSMK4iD = LoadBE32("SMK4");
+constexpr uint32_t kSMK2iD = LoadBE32("SMK2");
+constexpr uint32_t kSMK4iD = LoadBE32("SMK4");
 
 
 /**
