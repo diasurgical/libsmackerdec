@@ -188,6 +188,13 @@ SmackerDecoder::~SmackerDecoder()
 	delete[] picture;
 }
 
+static int EncodeSignature(const char *signature)
+{
+	const Uint32 *bigEndian = reinterpret_cast<const Uint32 *>(signature);
+	Uint32 nativeEndian = SDL_SwapBE32(*bigEndian);
+	return static_cast<int>(nativeEndian);
+}
+
 // from bswap.h
 static /*av_always_inline av_const*/ uint16_t av_bswap16(uint16_t x)
 {
@@ -238,8 +245,8 @@ const int kFlagRingFrame = 0x01;
 const int kTreeBits = 9;
 const int kSMKnode = 0x80000000;
 
-const int kSMK2iD = 'SMK2';
-const int kSMK4iD = 'SMK4';
+const int kSMK2iD = EncodeSignature("SMK2");
+const int kSMK4iD = EncodeSignature("SMK4");
 
 
 /**
