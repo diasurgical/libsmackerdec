@@ -43,7 +43,6 @@
  */
 
 #include "SmackerDecoder.h"
-#include "HuffmanVLC.h"
 #include "LogError.h"
 #include <assert.h>
 #include <climits>
@@ -253,20 +252,13 @@ constexpr uint32_t kSMK4iD = LoadBE32("SMK4");
  * Context used for code reconstructing
  */
 typedef struct HuffContext {
+    int leaves;
     int length;
-    int maxlength;
-    int current;
-
-	std::vector<uint32_t> bits;
-	std::vector<int> lengths;
-	std::vector<int> values;
-
+    std::vector<int> values;
 } HuffContext;
 
 /* common parameters used for decode_bigtree */
 typedef struct DBCtx {
-	SmackerCommon::VLCtable v1;
-	SmackerCommon::VLCtable v2;
 	std::vector<int> recode1, recode2;
     int escapes[3];
     int *last;
@@ -283,10 +275,7 @@ int SmackerDecoder::GetCode(SmackerCommon::BitReader &bits, std::vector<int> &re
 {
 	int *table = &recode[0];
 
-    int v, b;
-
-    b = bits.GetPosition();
-
+    int v;
     while (*table & kSMKnode)
 	{
         if (bits.GetBit())
@@ -294,13 +283,13 @@ int SmackerDecoder::GetCode(SmackerCommon::BitReader &bits, std::vector<int> &re
         table++;
     }
     v = *table;
-    b = bits.GetPosition() - b;
 
-    if (v != recode[last[0]]) {
+    if (last != nullptr && v != recode[last[0]]) {
         recode[last[2]] = recode[last[1]];
         recode[last[1]] = recode[last[0]];
         recode[last[0]] = v;
     }
+
     return v;
 }
 
@@ -453,35 +442,28 @@ bool SmackerDecoder::Open(SDL_RWops *rwops)
 	return true;
 }
 
-// static int smacker_decode_tree(GetBitContext *gb, HuffContext *hc, uint32_t prefix, int length)
-int SmackerDecoder::DecodeTree(SmackerCommon::BitReader &bits, HuffContext *hc, uint32_t prefix, int length)
+int SmackerDecoder::DecodeTree(SmackerCommon::BitReader &bits, HuffContext *hc)
 {
     if (!bits.GetBit()) // Leaf
 	{
-        if (hc->current >= 256){
+        if (hc->leaves >= 256){
 			SmackerCommon::LogError("Tree size exceeded!");
             return -1;
         }
-        if (length){
-            hc->bits[hc->current] = prefix;
-            hc->lengths[hc->current] = length;
-        } else {
-            hc->bits[hc->current] = 0;
-            hc->lengths[hc->current] = 0;
-        }
-        hc->values[hc->current] = bits.GetBits(8);
 
-        hc->current++;
-        if (hc->maxlength < length)
-            hc->maxlength = length;
+        hc->values.push_back(bits.GetBits(8));
+        hc->leaves++;
         return 0;
     } else { //Node
-        int r;
-        length++;
-        r = DecodeTree(bits, hc, prefix, length);
+        int t = hc->values.size();
+        hc->values.push_back(0);
+
+        int r = DecodeTree(bits, hc);
         if (r)
             return r;
-        return DecodeTree(bits, hc, prefix | (1 << (length - 1)), length);
+
+        hc->values[t] = kSMKnode | (hc->values.size() - t - 1);
+        return DecodeTree(bits, hc);
     }
 }
 
@@ -492,55 +474,48 @@ int SmackerDecoder::DecodeBigTree(SmackerCommon::BitReader &bits, HuffContext *h
 {
 	if (!bits.GetBit()) // Leaf
 	{
-		int val, i1, i2, b1, b2;
+		int i1 = 0;
+		int i2 = 0;
 
-		i1 = 0;
-		i2 = 0;
-
-		if (hc->current >= hc->length){
+		if (hc->leaves >= hc->length) {
 			SmackerCommon::LogError("Tree size exceeded!");
             return -1;
         }
 
-        b1 = bits.GetPosition();
-
-		if (VLC_GetSize(ctx->v1))
-		{
-			i1 = VLC_GetCodeBits(bits, ctx->v1);
+		if (ctx->recode1.size()) {
+			i1 = GetCode(bits, ctx->recode1, nullptr);
 		}
 
-        b1 = bits.GetPosition() - b1;
-        b2 = bits.GetPosition();
-
-		if (VLC_GetSize(ctx->v2))
-		{
-			i2 = VLC_GetCodeBits(bits, ctx->v2);
+		if (ctx->recode2.size()) {
+			i2 = GetCode(bits, ctx->recode2, nullptr);
 		}
 
-        b2 = bits.GetPosition() - b2;
         if (i1 < 0 || i2 < 0)
             return -1;
-        val = ctx->recode1[i1] | (ctx->recode2[i2] << 8);
+        
+        int val = i1 | (i2 << 8);
         if (val == ctx->escapes[0]) {
-            ctx->last[0] = hc->current;
+            ctx->last[0] = hc->values.size();
             val = 0;
         } else if (val == ctx->escapes[1]) {
-            ctx->last[1] = hc->current;
+            ctx->last[1] = hc->values.size();
             val = 0;
         } else if (val == ctx->escapes[2]) {
-            ctx->last[2] = hc->current;
+            ctx->last[2] = hc->values.size();
             val = 0;
         }
 
-        hc->values[hc->current++] = val;
+        hc->values.push_back(val);
+        hc->leaves++;
         return 1;
     } else { //Node
-        int r = 0, t;
+        int t = hc->values.size();
+        hc->values.push_back(0);
 
-        t = hc->current++;
-        r = DecodeBigTree(bits, hc, ctx);
+        int r = DecodeBigTree(bits, hc, ctx);
         if (r < 0)
             return r;
+
         hc->values[t] = kSMKnode | r;
         r++;
         r += DecodeBigTree(bits, hc, ctx);
@@ -564,30 +539,17 @@ int SmackerDecoder::DecodeHeaderTree(SmackerCommon::BitReader &bits, std::vector
 		return -1;
 	}
 
-	tmp1.length = 256;
-	tmp1.maxlength = 0;
-	tmp1.current = 0;
+	tmp1.leaves = 0;
+	tmp1.values.reserve(511);
 
-	tmp1.bits.resize(256);
-	tmp1.lengths.resize(256);
-	tmp1.values.resize(256);
-
-	tmp2.length = 256;
-	tmp2.maxlength = 0;
-	tmp2.current = 0;
-
-	tmp2.bits.resize(256);
-	tmp2.lengths.resize(256);
-	tmp2.values.resize(256);
+	tmp2.leaves = 0;
+	tmp2.values.reserve(511);
 
 	// low byte tree
 	if (bits.GetBit()) // 1: Read Tag
 	{
-		DecodeTree(bits, &tmp1, 0, 0);
-
+		DecodeTree(bits, &tmp1);
 		bits.SkipBits(1);
-
-		VLC_InitTable(ctx.v1, tmp1.maxlength, tmp1.current, &tmp1.lengths[0], &tmp1.bits[0]);
 	}
 	else
 	{
@@ -597,13 +559,8 @@ int SmackerDecoder::DecodeHeaderTree(SmackerCommon::BitReader &bits, std::vector
 	// high byte tree
 	if (bits.GetBit())
 	{
-		DecodeTree(bits, &tmp2, 0, 0);
-
-		uint32_t end = bits.GetPosition();
-
+		DecodeTree(bits, &tmp2);
 		bits.SkipBits(1);
-
-		VLC_InitTable(ctx.v2, tmp2.maxlength, tmp2.current, &tmp2.lengths[0], &tmp2.bits[0]);
 	}
 	else
 	{
@@ -627,21 +584,23 @@ int SmackerDecoder::DecodeHeaderTree(SmackerCommon::BitReader &bits, std::vector
     ctx.recode2 = tmp2.values;
     ctx.last = last;
 
+	huff.leaves = 0;
 	huff.length = ((size + 3) >> 2) + 3;
-    huff.maxlength = 0;
-    huff.current = 0;
-	huff.values.resize(huff.length);
-
+	huff.values.reserve(2 * huff.length - 1);
 	DecodeBigTree(bits, &huff, &ctx);
 
     bits.SkipBits(1);
 
-    if (ctx.last[0] == -1) ctx.last[0] = huff.current++;
-    if (ctx.last[1] == -1) ctx.last[1] = huff.current++;
-    if (ctx.last[2] == -1) ctx.last[2] = huff.current++;
+	int current = huff.values.size();
+	if (ctx.last[0] == -1)
+		ctx.last[0] = current++;
+	if (ctx.last[1] == -1)
+		ctx.last[1] = current++;
+	if (ctx.last[2] == -1)
+		ctx.last[2] = current++;
 
+	huff.values.resize(current);
 	recodes = huff.values;
-
 	return true;
 }
 
@@ -970,7 +929,6 @@ int SmackerDecoder::DecodeFrame(uint32_t frameSize)
 int SmackerDecoder::DecodeAudio(uint32_t size, SmackerAudioTrack &track)
 {
     HuffContext h[4];
-	SmackerCommon::VLCtable vlc[4];
     int16_t *samples = reinterpret_cast<int16_t*>(track.buffer);
     int8_t *samples8 = reinterpret_cast<int8_t*>(track.buffer);
     int val;
@@ -1003,25 +961,14 @@ int SmackerDecoder::DecodeAudio(uint32_t size, SmackerAudioTrack &track)
 		return -1;
     }
 
-    memset(h, 0, sizeof(HuffContext) * 4);
-
     // Initialize
     for (i = 0; i < (1 << (sampleBits + stereo)); i++) {
-        h[i].length = 256;
-        h[i].maxlength = 0;
-        h[i].current = 0;
-        h[i].bits.resize(256);
-        h[i].lengths.resize(256);
-        h[i].values.resize(256);
+        h[i].leaves = 0;
+        h[i].values.reserve(511);
 
         bits.SkipBits(1);
-		DecodeTree(bits, &h[i], 0, 0);
+		DecodeTree(bits, &h[i]);
         bits.SkipBits(1);
-
-        if (h[i].current > 1) {
-
-			VLC_InitTable(vlc[i], h[i].maxlength, h[i].current, &h[i].lengths[0], &h[i].bits[0]);
-        }
     }
     if (sampleBits) { //decode 16-bit data
         for (i = stereo; i >= 0; i--)
@@ -1030,29 +977,29 @@ int SmackerDecoder::DecodeAudio(uint32_t size, SmackerAudioTrack &track)
             *samples++ = pred[i];
         for (; i < unpackedSize / 2; i++) {
             if (i & stereo) {
-				if (VLC_GetSize(vlc[2]))
-					res = VLC_GetCodeBits(bits, vlc[2]);
+				if (h[2].values.size())
+					res = GetCode(bits, h[2].values, nullptr);
                 else
                     res = 0;
-                val  = h[2].values[res];
-				if (VLC_GetSize(vlc[3]))
-					res = VLC_GetCodeBits(bits, vlc[3]);
+                val  = res;
+				if (h[3].values.size())
+					res = GetCode(bits, h[3].values, nullptr);
                 else
                     res = 0;
-                val |= h[3].values[res] << 8;
+                val |= res << 8;
                 pred[1] += (int16_t)val;
                 *samples++ = pred[1];
             } else {
-				if (VLC_GetSize(vlc[0]))
-					res = VLC_GetCodeBits(bits, vlc[0]);
+				if (h[0].values.size())
+					res = GetCode(bits, h[0].values, nullptr);
                 else
                     res = 0;
-                val  = h[0].values[res];
-				if (VLC_GetSize(vlc[1]))
-					res = VLC_GetCodeBits(bits, vlc[1]);
+                val  = res;
+				if (h[1].values.size())
+					res = GetCode(bits, h[1].values, nullptr);
                 else
                     res = 0;
-                val |= h[1].values[res] << 8;
+                val |= res << 8;
                 pred[0] += val;
                 *samples++ = pred[0];
             }
@@ -1065,18 +1012,18 @@ int SmackerDecoder::DecodeAudio(uint32_t size, SmackerAudioTrack &track)
             *samples8++ = pred[i];
         for (; i < unpackedSize; i++) {
             if (i & stereo){
-				if (VLC_GetSize(vlc[1]))
-					res = VLC_GetCodeBits(bits, vlc[1]);
+				if (h[1].values.size())
+					res = GetCode(bits, h[1].values, nullptr);
                 else
                     res = 0;
-                pred[1] += (int8_t)h[1].values[res];
+                pred[1] += (int8_t)res;
                 *samples8++ = pred[1];
             } else {
-				if (VLC_GetSize(vlc[0]))
-				res = VLC_GetCodeBits(bits, vlc[0]);
+				if (h[0].values.size())
+				res = GetCode(bits, h[0].values, nullptr);
                 else
                     res = 0;
-                pred[0] += (int8_t)h[0].values[res];
+                pred[0] += (int8_t)res;
                 *samples8++ = pred[0];
             }
         }

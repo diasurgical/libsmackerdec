@@ -162,7 +162,7 @@ class SmackerDecoder
 
 		bool DecodeHeaderTrees();
 		int DecodeHeaderTree(SmackerCommon::BitReader &bits, std::vector<int> &recodes, int *last, int size);
-		int DecodeTree(SmackerCommon::BitReader &bits, HuffContext *hc, uint32_t prefix, int length);
+		int DecodeTree(SmackerCommon::BitReader &bits, HuffContext *hc);
 		int DecodeBigTree(SmackerCommon::BitReader &bits, HuffContext *hc, DBCtx *ctx);
 		int GetCode(SmackerCommon::BitReader &bits, std::vector<int> &recode, int *last);
 		int ReadPacket();
