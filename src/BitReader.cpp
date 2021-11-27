@@ -40,7 +40,13 @@ BitReader::~BitReader()
 
 void BitReader::FillCache()
 {
-	if (bytesRead < totalSize)
+	if (bytesRead < totalSize - 4)
+	{
+		this->cache = this->file->ReadUint32LE();
+		nCachedBits = 32;
+		bytesRead += 4;
+	}
+	else if (bytesRead < totalSize)
 	{
 		this->cache = this->file->ReadByte();
 		nCachedBits = 8;
@@ -59,21 +65,19 @@ uint32_t BitReader::GetSize()
 
 uint32_t BitReader::GetPosition()
 {
-	return currentOffset + (8 - nCachedBits);
+	return currentOffset;
 }
 
 uint32_t BitReader::GetBit()
 {
 	if (nCachedBits == 0)
-	{
 		FillCache();
-		currentOffset += 8;
-	}
 
 	uint32_t ret = cache & 1;
 
 	cache >>= 1;
 	nCachedBits--;
+	currentOffset++;
 
 	return ret;
 }
