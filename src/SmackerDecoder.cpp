@@ -46,6 +46,7 @@
 #include "LogError.h"
 #include <assert.h>
 #include <climits>
+#include <cstring>
 
 std::vector<class SmackerDecoder*> classInstances;
 
