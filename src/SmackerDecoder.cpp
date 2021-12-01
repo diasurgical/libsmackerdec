@@ -321,6 +321,7 @@ bool SmackerDecoder::Open(SDL_RWops *rwops)
 	nFrames = file.ReadUint32LE();
 
 	picture = new uint8_t[frameWidth * frameHeight];
+	memset(picture, 0, frameWidth * frameHeight);
 
 	int32_t frameRate = file.ReadUint32LE();
 
