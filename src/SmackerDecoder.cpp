@@ -44,6 +44,7 @@
 
 #include "SmackerDecoder.h"
 #include "LogError.h"
+#include <algorithm>
 #include <assert.h>
 #include <climits>
 #include <cstring>
