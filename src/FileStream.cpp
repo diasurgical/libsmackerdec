@@ -97,13 +97,13 @@ uint8_t FileStream::ReadByte()
 
 bool FileStream::Seek(int32_t offset, SeekDirection direction)
 {
-	int result = -1;
+	Sint64 result = -1;
 	if (kSeekStart == direction)
-		result = SDL_RWseek(rwops, offset, SEEK_SET);
+		result = SDL_RWseek(rwops, static_cast<Sint64>(offset), RW_SEEK_SET);
 	else if (kSeekCurrent == direction)
-		result = SDL_RWseek(rwops, offset, SEEK_CUR);
+		result = SDL_RWseek(rwops, static_cast<Sint64>(offset), RW_SEEK_CUR);
 	else if (kSeekEnd == direction)
-		result = SDL_RWseek(rwops, offset, SEEK_END);
+		result = SDL_RWseek(rwops, static_cast<Sint64>(offset), RW_SEEK_END);
 	return result >= 0;
 }
 
