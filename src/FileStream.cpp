@@ -19,6 +19,7 @@
 
 #include "FileStream.h"
 #include <SDL_endian.h>
+#include <SDL_rwops.h>
 #include <stdlib.h>
 
 namespace SmackerCommon {
