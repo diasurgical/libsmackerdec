@@ -46,9 +46,16 @@
 #define _SmackerDecoder_h_
 
 #include <stdint.h>
-#include "FileStream.h"
-#include "BitReader.h"
 #include <vector>
+
+#include "BitReader.h"
+#include "FileStream.h"
+
+#ifdef USE_SDL3
+#include <SDL3/SDL_iostream.h>
+#else
+#include <SDL.h>
+#endif
 
 // exportable interface
 struct SmackerHandle
@@ -66,7 +73,11 @@ struct SmackerAudioInfo
 	uint32_t idealBufferSize;
 };
 
+#ifdef USE_SDL3
+SmackerHandle     Smacker_Open                 (SDL_IOStream *rwops);
+#else
 SmackerHandle     Smacker_Open                 (SDL_RWops *rwops);
+#endif
 void              Smacker_Close                (SmackerHandle &handle);
 uint32_t          Smacker_GetNumAudioTracks    (SmackerHandle &handle);
 SmackerAudioInfo  Smacker_GetAudioTrackDetails (SmackerHandle &handle, uint32_t trackIndex);
@@ -112,8 +123,12 @@ class SmackerDecoder
 		SmackerDecoder();
 		~SmackerDecoder();
 
-		bool Open(SDL_RWops *rwops);
-		void GetPalette(uint8_t *palette);
+#ifdef USE_SDL3
+	    bool Open(SDL_IOStream *rwops);
+#else
+	    bool Open(SDL_RWops *rwops);
+#endif
+	    void GetPalette(uint8_t *palette);
 		void GetFrame(uint8_t *frame);
 		bool DidPaletteChange();
 

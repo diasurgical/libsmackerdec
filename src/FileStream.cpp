@@ -18,11 +18,23 @@
  */
 
 #include "FileStream.h"
+
 #include <stdlib.h>
+
+#ifdef USE_SDL3
+#include <SDL3/SDL_endian.h>
+#include <SDL3/SDL_iostream.h>
+#else
+#include <SDL.h>
+#endif
 
 namespace SmackerCommon {
 
+#ifdef USE_SDL3
+bool FileStream::Open(SDL_IOStream *rwops)
+#else
 bool FileStream::Open(SDL_RWops *rwops)
+#endif
 {
 	this->rwops = rwops;
 	is_eos = false;
@@ -36,14 +48,24 @@ bool FileStream::Is_Open()
 
 void FileStream::Close()
 {
-	if (Is_Open())
+	if (Is_Open()) {
+#if USE_SDL3
+		SDL_CloseIO(rwops);
+#else
 		SDL_RWclose(rwops);
+#endif
+	}
 	rwops = nullptr;
 }
 
 int32_t FileStream::ReadBytes(uint8_t *data, uint32_t nBytes)
 {
-	size_t bytesRead = SDL_RWread(rwops, reinterpret_cast<void *>(data), 1, nBytes);
+	const size_t bytesRead =
+#if USE_SDL3
+	    SDL_ReadIO(rwops, data, nBytes);
+#else
+	    SDL_RWread(rwops, reinterpret_cast<void *>(data), 1, nBytes);
+#endif
 	is_eos = bytesRead == 0;
 	return static_cast<int32_t>(bytesRead);
 }
@@ -54,7 +76,11 @@ uint32_t FileStream::ReadUint32LE()
 	int32_t bytesRead = ReadBytes(reinterpret_cast<uint8_t *>(&value), 4);
 	if (bytesRead < 4)
 		return 0;
-	return static_cast<uint32_t>(SDL_SwapLE32(value));
+#ifdef USE_SDL3
+	return SDL_Swap32LE(value);
+#else
+	return SDL_SwapLE32(value);
+#endif
 }
 
 uint32_t FileStream::ReadUint32BE()
@@ -63,7 +89,11 @@ uint32_t FileStream::ReadUint32BE()
 	int32_t bytesRead = ReadBytes(reinterpret_cast<uint8_t *>(&value), 4);
 	if (bytesRead < 4)
 		return 0;
-	return static_cast<uint32_t>(SDL_SwapBE32(value));
+#ifdef USE_SDL3
+	return SDL_Swap32BE(value);
+#else
+	return SDL_SwapBE32(value);
+#endif
 }
 
 uint16_t FileStream::ReadUint16LE()
@@ -72,7 +102,11 @@ uint16_t FileStream::ReadUint16LE()
 	int32_t bytesRead = ReadBytes(reinterpret_cast<uint8_t *>(&value), 2);
 	if (bytesRead < 2)
 		return 0;
-	return static_cast<uint16_t>(SDL_SwapLE16(value));
+#ifdef USE_SDL3
+	return SDL_Swap16LE(value);
+#else
+	return SDL_SwapLE16(value);
+#endif
 }
 
 uint16_t FileStream::ReadUint16BE()
@@ -81,7 +115,11 @@ uint16_t FileStream::ReadUint16BE()
 	int32_t bytesRead = ReadBytes(reinterpret_cast<uint8_t *>(&value), 2);
 	if (bytesRead < 2)
 		return 0;
-	return static_cast<uint16_t>(SDL_SwapBE16(value));
+#ifdef USE_SDL3
+	return SDL_Swap16BE(value);
+#else
+	return SDL_SwapBE16(value);
+#endif
 }
 
 uint8_t FileStream::ReadByte()
@@ -95,14 +133,27 @@ uint8_t FileStream::ReadByte()
 
 bool FileStream::Seek(int32_t offset, SeekDirection direction)
 {
-	Sint64 result = -1;
-	if (kSeekStart == direction)
-		result = SDL_RWseek(rwops, static_cast<Sint64>(offset), RW_SEEK_SET);
-	else if (kSeekCurrent == direction)
-		result = SDL_RWseek(rwops, static_cast<Sint64>(offset), RW_SEEK_CUR);
-	else if (kSeekEnd == direction)
-		result = SDL_RWseek(rwops, static_cast<Sint64>(offset), RW_SEEK_END);
-	return result >= 0;
+	switch (direction) {
+	case kSeekStart:
+#ifdef USE_SDL3
+		return SDL_SeekIO(rwops, static_cast<Sint64>(offset), SDL_IO_SEEK_SET) != -1;
+#else
+		return SDL_RWseek(rwops, static_cast<Sint64>(offset), RW_SEEK_SET) >= 0;
+#endif
+	case kSeekCurrent:
+#ifdef USE_SDL3
+		return SDL_SeekIO(rwops, static_cast<Sint64>(offset), SDL_IO_SEEK_CUR) != -1;
+#else
+		return SDL_RWseek(rwops, static_cast<Sint64>(offset), RW_SEEK_CUR) >= 0;
+#endif
+	case kSeekEnd:
+#ifdef USE_SDL3
+		return SDL_SeekIO(rwops, static_cast<Sint64>(offset), SDL_IO_SEEK_END) != -1;
+#else
+		return SDL_RWseek(rwops, static_cast<Sint64>(offset), RW_SEEK_END) >= 0;
+#endif
+	}
+	return false;
 }
 
 bool FileStream::Skip(int32_t offset)
@@ -117,7 +168,11 @@ bool FileStream::Is_Eos()
 
 int32_t FileStream::GetPosition()
 {
+#ifdef USE_SDL3
+	return static_cast<int32_t>(SDL_TellIO(rwops));
+#else
 	return static_cast<int32_t>(SDL_RWtell(rwops));
+#endif
 }
 
 } // close namespace SmackerCommon
