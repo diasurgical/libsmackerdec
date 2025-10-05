@@ -51,7 +51,11 @@
 
 std::vector<class SmackerDecoder*> classInstances;
 
+#ifdef USE_SDL3
+SmackerHandle Smacker_Open(SDL_IOStream *rwops)
+#else
 SmackerHandle Smacker_Open(SDL_RWops *rwops)
+#endif
 {
 	SmackerHandle newHandle;
 	newHandle.isValid = false;
@@ -103,8 +107,8 @@ SmackerAudioInfo Smacker_GetAudioTrackDetails(SmackerHandle &handle, uint32_t tr
 	return classInstances[handle.instanceIndex]->GetAudioTrackDetails(trackIndex);
 }
 
-/* Get a frame's worth of audio data. 
- * 
+/* Get a frame's worth of audio data.
+ *
  * 'data' needs to be a pointer to allocated memory that this function will fill.
  * You can find the size (in bytes) to make this buffer by calling Bink_GetAudioTrackDetails()
  * and checking the 'idealBufferSize' member in the returned AudioInfo struct
@@ -233,11 +237,11 @@ static const uint8_t smk_pal[64] = {
 };
 
 enum SAudFlags {
-    SMK_AUD_PACKED  = 0x80000000, 
-    SMK_AUD_16BITS  = 0x20000000, 
-    SMK_AUD_STEREO  = 0x10000000, 
-    SMK_AUD_BINKAUD = 0x08000000, 
-    SMK_AUD_USEDCT  = 0x04000000 
+	SMK_AUD_PACKED = 0x80000000,
+	SMK_AUD_16BITS = 0x20000000,
+	SMK_AUD_STEREO = 0x10000000,
+	SMK_AUD_BINKAUD = 0x08000000,
+	SMK_AUD_USEDCT = 0x04000000
 };
 
 const int kSMKpal = 0x01;
@@ -295,7 +299,11 @@ int SmackerDecoder::GetCode(SmackerCommon::BitReader &bits, std::vector<int> &re
     return v;
 }
 
+#ifdef USE_SDL3
+bool SmackerDecoder::Open(SDL_IOStream *rwops)
+#else
 bool SmackerDecoder::Open(SDL_RWops *rwops)
+#endif
 {
 	// open the file (read only)
 	file.Open(rwops);
@@ -404,7 +412,7 @@ bool SmackerDecoder::Open(SDL_RWops *rwops)
 	}
 
 	memset(palette, 0, 768);
-	
+
 	DecodeHeaderTrees();
 
 	// set nextPos to where we are now, as next data is frame 1
@@ -427,18 +435,16 @@ bool SmackerDecoder::Open(SDL_RWops *rwops)
 
 	frameFlag >>= 1;
 
-	for (int i = 0; i < kMaxAudioTracks; i++) 
-	{
-		if (frameFlag & 1) 
-		{
+	for (int i = 0; i < kMaxAudioTracks; i++) {
+		if (frameFlag & 1) {
 			// skip size
 			file.Skip(4);
-			
+
 			uint32_t unpackedSize = file.ReadUint32LE();
 
 			audioTracks[i].bufferSize = unpackedSize;
 			audioTracks[i].buffer = new uint8_t[unpackedSize];
-		}	
+		}
 		frameFlag >>= 1;
 	}
 
@@ -495,7 +501,7 @@ int SmackerDecoder::DecodeBigTree(SmackerCommon::BitReader &bits, HuffContext *h
 
         if (i1 < 0 || i2 < 0)
             return -1;
-        
+
         int val = i1 | (i2 << 8);
         if (val == ctx->escapes[0]) {
             ctx->last[0] = hc->values.size();
@@ -663,7 +669,7 @@ bool SmackerDecoder::DecodeHeaderTrees()
 	/* FIXME - we don't seems to read/use EVERY bit we 'load' into the bit reader
 	 * and as my bitreader reads from the file rather than a buffer read from file
 	 * of size 'treeSize', I need to make sure I consume the remaining bits (and thus increment
-	 * the file read position to where the code expects it to be when this function returns (ie 
+	 * the file read position to where the code expects it to be when this function returns (ie
 	 * 'treeSize' number of bytes must be read
 	 */
 	uint32_t left = bits.GetSize() - bits.GetPosition();
@@ -727,7 +733,7 @@ int SmackerDecoder::ReadPacket()
                 sz++;
             }
         }
-        
+
 		paletteChanged = true;
 		file.Seek(pos, SmackerCommon::FileStream::kSeekStart);
 	}
@@ -735,12 +741,10 @@ int SmackerDecoder::ReadPacket()
 	frameFlag >>= 1;
 
 	// check for and handle audio
-	for (int i = 0; i < kMaxAudioTracks; i++) 
-	{
+	for (int i = 0; i < kMaxAudioTracks; i++) {
 		audioTracks[i].bytesReadThisFrame = 0;
 
-		if (frameFlag & 1) 
-		{
+		if (frameFlag & 1) {
 			uint32_t size = file.ReadUint32LE() - 4;
 			frameSize -= size;
 			frameSize -= 4;
@@ -807,16 +811,15 @@ int SmackerDecoder::DecodeFrame(uint32_t frameSize)
 
                 hi = clr >> 8;
                 lo = clr & 0xFF;
-                for (i = 0; i < 4; i++) 
-				{
-                    if (map & 1) out[0] = hi; else out[0] = lo;
+				for (i = 0; i < 4; i++) {
+					if (map & 1) out[0] = hi; else out[0] = lo;
                     if (map & 2) out[1] = hi; else out[1] = lo;
                     if (map & 4) out[2] = hi; else out[2] = lo;
                     if (map & 8) out[3] = hi; else out[3] = lo;
                     map >>= 4;
                     out += stride;
-                }
-                blk++;
+				}
+				blk++;
             }
             break;
         case SMK_BLK_FULL:
@@ -917,7 +920,7 @@ int SmackerDecoder::DecodeFrame(uint32_t frameSize)
 	/* FIXME - we don't seems to read/use EVERY bit we 'load' into the bit reader
 	 * and as my bitreader reads from the file rather than a buffer read from file
 	 * of size 'frameSize', I need to make sure I consume the remaining bits (and thus increment
-	 * the file read position to where the code expects it to be when this function returns (ie 
+	 * the file read position to where the code expects it to be when this function returns (ie
 	 * 'frameSize' number of bytes must be read
 	 */
 	uint32_t left = bits.GetSize() - bits.GetPosition();
@@ -1007,9 +1010,8 @@ int SmackerDecoder::DecodeAudio(uint32_t size, SmackerAudioTrack &track)
                 *samples++ = pred[0];
             }
         }
-    } 
-	else { //8-bit data
-        for (i = stereo; i >= 0; i--)
+	} else { // 8-bit data
+		for (i = stereo; i >= 0; i--)
             pred[i] = bits.GetBits(8);
         for (i = 0; i <= stereo; i++)
             *samples8++ = pred[i];
@@ -1030,7 +1032,7 @@ int SmackerDecoder::DecodeAudio(uint32_t size, SmackerAudioTrack &track)
                 *samples8++ = pred[0];
             }
         }
-    }
+	}
 
 	track.bytesReadThisFrame = unpackedSize;
 

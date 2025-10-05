@@ -20,9 +20,14 @@
 #ifndef _SmackerFileStream_h_
 #define _SmackerFileStream_h_
 
-#include <string>
+#ifdef USE_SDL3
+#include <SDL3/SDL_iostream.h>
+#else
 #include <SDL.h>
+#endif
+
 #include <stdint.h>
+#include <string>
 
 namespace SmackerCommon {
 
@@ -39,8 +44,12 @@ class FileStream
 			Close();
 		}
 
-		bool Open(SDL_RWops *rwops);
-		bool Is_Open();
+#ifdef USE_SDL3
+	    bool Open(SDL_IOStream *rwops);
+#else
+	    bool Open(SDL_RWops *rwops);
+#endif
+	    bool Is_Open();
 		void Close();
 
 		int32_t ReadBytes(uint8_t *data, uint32_t nBytes);
@@ -66,8 +75,12 @@ class FileStream
 		bool Is_Eos();
 
 	private:
-		SDL_RWops *rwops;
-		bool is_eos;
+#ifdef USE_SDL3
+	    SDL_IOStream *rwops;
+#else
+	    SDL_RWops *rwops;
+#endif
+	    bool is_eos;
 };
 
 } // close namespace SmackerCommon
