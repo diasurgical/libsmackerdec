@@ -20,14 +20,14 @@
 #ifndef _SmackerFileStream_h_
 #define _SmackerFileStream_h_
 
+#include <stdint.h>
+#include <string>
+
 #ifdef USE_SDL3
 #include <SDL3/SDL_iostream.h>
 #else
 #include <SDL.h>
 #endif
-
-#include <stdint.h>
-#include <string>
 
 namespace SmackerCommon {
 
